@@ -1,9 +1,9 @@
 #include <stdio.h>
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <time.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL_ttf.h>
 #include <math.h>
 
 #define MAX_ENEMIES 20
@@ -20,7 +20,6 @@ typedef struct{
     bool defeated;
     char hexText[3];
 
-    SDL_Surface* text;
     SDL_Texture* text_texture;
     SDL_Rect dest;
 }enemy;
@@ -35,6 +34,7 @@ char assignHexText();
 void createEnemy(enemy *enemyBuffer);
 bool checkInput();
 void removeEnemy();
+void randomizeEnemy(enemy *enemyBuffer);
 
 //Constants
 const int WIDTH = 640;
@@ -111,24 +111,25 @@ bool loop() {
                     }
             }
 	}
-	
+
 	if (enemyArray[ptrToFirstEnemy].rect.y + enemyArray[ptrToFirstEnemy].rect.h > DEADLINE){
-		return false;	
+		return false;
 	}
 
 	if (missile.y < enemyArray[ptrToFirstEnemy].rect.y+enemyArray[ptrToFirstEnemy].rect.h){
 		missile.y = missileDefaultPos;
 		enemyArray[ptrToFirstEnemy].rect.y = enemyArray[ptrToLastEnemy].rect.y - 100;
+		randomizeEnemy(&enemyArray[ptrToFirstEnemy]);
 		enemyArray[ptrToFirstEnemy].defeated = false;
-		
+
 		(ptrToFirstEnemy == 4) ? ptrToFirstEnemy = 0 : ptrToFirstEnemy++;
 		(ptrToLastEnemy == 4) ? ptrToLastEnemy = 0 : ptrToLastEnemy++;
-		
+
 	}
 
 
-	
-	
+
+
     for (int i =0; i < 8; i++){
         if (binaryPadArray[i].state == false){
             SDL_SetRenderDrawColor( renderer, 255, 0, 0, 255 );
@@ -137,17 +138,17 @@ bool loop() {
         }
         SDL_RenderFillRect( renderer, &binaryPadArray[i].rect );
     }
-	
 
-	
+
+
 	for (int i = 0;i < 5; i++){
 		SDL_SetRenderDrawColor( renderer, 0, 255, 0, 255 );
-		
-		enemyArray[i].rect.y++;	
+
+		enemyArray[i].rect.y++;
 		SDL_RenderFillRect( renderer, &enemyArray[i].rect );
 		enemyArray[i].dest.y = enemyArray[i].rect.y;
 		enemyArray[i].dest.x = enemyArray[i].rect.x;
-		SDL_RenderCopy(renderer,enemyArray[i].text_texture,NULL,&enemyArray[i].dest);		
+		SDL_RenderCopy(renderer,enemyArray[i].text_texture,NULL,&enemyArray[i].dest);
 	}
 
     SDL_SetRenderDrawColor( renderer, 255, 255, 0, 255 );
@@ -179,7 +180,7 @@ bool loop() {
 
 bool init() {
     framesCounted = 0;
- 
+
     missile.x = 0;
     missile.y = missileDefaultPos;
     missile.w = 30;
@@ -241,6 +242,10 @@ bool init() {
 void Vkill() {
 	// Quit
 
+    for (int i =0; i < 5; i++){
+        SDL_DestroyTexture( enemyArray[i].text_texture );
+    }
+
     font = NULL;
 	TTF_CloseFont( font );
 
@@ -288,34 +293,70 @@ char assignHexText(){
 
 void createEnemy(enemy *enemyBuffer){
 
-    int randXPos = rand() % WIDTH;
-
-	enemyBuffer->rect.x = randXPos;
-	enemyBuffer->rect.y = -100;
 	enemyBuffer->rect.w = 50;
-	enemyBuffer->rect.h = 50;
+    enemyBuffer->rect.h = 50;
+
+    int randXPos = (rand() % WIDTH) - enemyBuffer->rect.w;
+    if(randXPos < 0) randXPos = 0;
+    enemyBuffer->rect.x = randXPos;
+    enemyBuffer->rect.y = -100;
+
 	enemyBuffer->defeated = false;
 	enemyBuffer->hexText[0]= assignHexText();
 	enemyBuffer->hexText[1]= assignHexText();
 	enemyBuffer->hexText[2]= '\0';
 
-    enemyBuffer->text = TTF_RenderText_Solid( font,enemyBuffer->hexText , BLACK );
+	SDL_Surface* textSurface;
 
-    if ( !enemyBuffer->text ) {
+    textSurface = TTF_RenderText_Solid( font,enemyBuffer->hexText , BLACK );
+
+    if ( !textSurface ) {
         printf("Failed to render text: %s\n",TTF_GetError());
     }
 
-    enemyBuffer->text_texture = SDL_CreateTextureFromSurface( renderer,enemyBuffer->text );
+    enemyBuffer->text_texture = SDL_CreateTextureFromSurface( renderer,textSurface );
 
-    enemyBuffer->dest.w = enemyBuffer->text->w;
-    enemyBuffer->dest.h = enemyBuffer->text->h;
+    enemyBuffer->dest.w = textSurface->w;
+    enemyBuffer->dest.h = textSurface->h;
+
+	SDL_FreeSurface(textSurface);
 
     printf("%s\n",enemyBuffer->hexText);
 }
 
 
+
+
+
+void randomizeEnemy(enemy *enemyBuffer){
+    int randXPos = (rand() % WIDTH) - enemyBuffer->rect.w;
+    if(randXPos < 0) randXPos = 0;
+    enemyBuffer->rect.x = randXPos;
+
+    enemyBuffer->hexText[0]= assignHexText();
+	enemyBuffer->hexText[1]= assignHexText();
+
+	SDL_Surface* textSurface;
+
+    textSurface = TTF_RenderText_Solid( font,enemyBuffer->hexText , BLACK );
+
+    if ( !textSurface ) {
+        printf("Failed to render text: %s\n",TTF_GetError());
+    }
+
+    enemyBuffer->text_texture = SDL_CreateTextureFromSurface( renderer,textSurface );
+
+    enemyBuffer->dest.w = textSurface->w;
+    enemyBuffer->dest.h = textSurface->h;
+
+	SDL_FreeSurface(textSurface);
+
+}
+
+
+
 bool checkInput(){
-   
+
 	int currentNum = 0;
 
 	int realHex;
@@ -325,7 +366,7 @@ bool checkInput(){
     }
 
     sscanf(enemyArray[ptrToFirstEnemy].hexText,"%x",&realHex);
-	
+
     if(currentNum == realHex && enemyArray[ptrToFirstEnemy].defeated == false){
     	missile.y = HEIGHT - 100;
 		missile.x = enemyArray[ptrToFirstEnemy].rect.x;
@@ -333,10 +374,12 @@ bool checkInput(){
     	printf("Pointer to first enemy is %d\n",ptrToFirstEnemy);
         return true;
     }else{
-        
+
         return false;
     }
-	
+
     return false;
 }
+
+
 
