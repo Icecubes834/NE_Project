@@ -1,12 +1,17 @@
 #include <stdio.h>
-#include <SDL.h>
-#include <stdbool.h>
 #include <stdlib.h>
-#include <time.h>
-#include <SDL_ttf.h>
+#include <stdbool.h>
 #include <math.h>
+#include <time.h>
 
-#define MAX_ENEMIES 20
+#include <SDL.h>
+#include <SDL_ttf.h>
+
+
+#define HEIGHT 480
+#define WIDTH 640
+#define MAX_ENEMIES 5
+#define MISSILE_SPEED 5
 
 
 struct binaryPad{
@@ -20,6 +25,7 @@ typedef struct{
     bool defeated;
     char hexText[3];
 
+    SDL_Surface* text_surface;
     SDL_Texture* text_texture;
     SDL_Rect dest;
 }enemy;
@@ -37,17 +43,14 @@ void removeEnemy();
 void randomizeEnemy(enemy *enemyBuffer);
 
 //Constants
-const int WIDTH = 640;
-const int HEIGHT = 480;
-const int ENEMYSPAWNRATE = 300;
 SDL_Color BLACK = {0,0,0};
 
 
 //Variables
-int DEADLINE = 480 - 100;
+int DEADLINE = 0.8*HEIGHT;
 int missileDefaultPos = 0xffff;
 size_t ptrToFirstEnemy = 0;
-size_t ptrToLastEnemy = 4;
+size_t ptrToLastEnemy = MAX_ENEMIES - 1;
 
 
 int binaryNumber[8][2] = {
@@ -56,8 +59,7 @@ int binaryNumber[8][2] = {
 };
 SDL_Rect missile;
 struct binaryPad binaryPadArray[8];
-enemy enemyArray[5];
-size_t framesCounted;
+enemy enemyArray[MAX_ENEMIES];
 
 
 
@@ -122,8 +124,8 @@ bool loop() {
 		randomizeEnemy(&enemyArray[ptrToFirstEnemy]);
 		enemyArray[ptrToFirstEnemy].defeated = false;
 
-		(ptrToFirstEnemy == 4) ? ptrToFirstEnemy = 0 : ptrToFirstEnemy++;
-		(ptrToLastEnemy == 4) ? ptrToLastEnemy = 0 : ptrToLastEnemy++;
+		(ptrToFirstEnemy == MAX_ENEMIES - 1) ? ptrToFirstEnemy = 0 : ptrToFirstEnemy++;
+		(ptrToLastEnemy == MAX_ENEMIES - 1) ? ptrToLastEnemy = 0 : ptrToLastEnemy++;
 
 	}
 
@@ -141,7 +143,7 @@ bool loop() {
 
 
 
-	for (int i = 0;i < 5; i++){
+	for (int i = 0;i < MAX_ENEMIES; i++){
 		SDL_SetRenderDrawColor( renderer, 0, 255, 0, 255 );
 
 		enemyArray[i].rect.y++;
@@ -152,9 +154,15 @@ bool loop() {
 	}
 
     SDL_SetRenderDrawColor( renderer, 255, 255, 0, 255 );
-    missile.y-= 5;
+    missile.y-= MISSILE_SPEED;
 
     SDL_RenderFillRect( renderer, &missile );
+
+    SDL_SetRenderDrawColor( renderer, 0, 0, 0, 255 );
+
+    SDL_RenderDrawLine(renderer,0, DEADLINE, WIDTH, DEADLINE);
+	SDL_RenderDrawLine(renderer,WIDTH/2,HEIGHT,WIDTH/2,DEADLINE);
+
 
 	// Update window
 	SDL_RenderPresent( renderer );
@@ -173,13 +181,10 @@ bool loop() {
 	// Cap to 60 FPS
 	if (16.666*2 > elapsedMS) SDL_Delay(floor(16.666*2 - elapsedMS));
 
-	framesCounted++;
-
 	return true;
 }
 
 bool init() {
-    framesCounted = 0;
 
     missile.x = 0;
     missile.y = missileDefaultPos;
@@ -198,7 +203,7 @@ bool init() {
 		return false;
 	}
 
-	window = SDL_CreateWindow( "Example", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH, HEIGHT, SDL_WINDOW_SHOWN );
+	window = SDL_CreateWindow( "NE_Project", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH, HEIGHT, SDL_WINDOW_SHOWN );
 	if ( !window ) {
 		printf("Error creating window: %s",SDL_GetError());
 		system("pause");
@@ -226,7 +231,7 @@ bool init() {
 		return false;
 	}
 
-	for(int i =0;i <5; i++){
+	for(int i = 0;i < MAX_ENEMIES; i++){
 		enemy enemyBuff;
 		createEnemy(&enemyBuff);
 		enemyBuff.rect.y *= i;
@@ -242,26 +247,20 @@ bool init() {
 void Vkill() {
 	// Quit
 
-    for (int i =0; i < 5; i++){
+    for (int i =0; i < MAX_ENEMIES; i++){
         SDL_DestroyTexture( enemyArray[i].text_texture );
     }
 
-    font = NULL;
-	TTF_CloseFont( font );
-
+    TTF_CloseFont( font );
 
 	SDL_DestroyRenderer( renderer );
 	SDL_DestroyWindow( window );
+	window = NULL;
+	renderer = NULL;
+
+    TTF_Quit();
 	SDL_Quit();
 }
-
-
-
-
-
-
-
-
 
 
 
@@ -320,7 +319,6 @@ void createEnemy(enemy *enemyBuffer){
     enemyBuffer->dest.h = textSurface->h;
 
 	SDL_FreeSurface(textSurface);
-
     printf("%s\n",enemyBuffer->hexText);
 }
 
@@ -374,7 +372,6 @@ bool checkInput(){
     	printf("Pointer to first enemy is %d\n",ptrToFirstEnemy);
         return true;
     }else{
-
         return false;
     }
 
