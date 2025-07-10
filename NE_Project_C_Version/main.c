@@ -7,51 +7,23 @@
 #include <SDL.h>
 #include <SDL_ttf.h>
 
-
-#define HEIGHT 480
-#define WIDTH 640
-#define MAX_ENEMIES 5
-#define MISSILE_SPEED 5
-
-
-struct binaryPad{
-    SDL_Rect rect;
-    bool state;
-    int padNumber;
-};
-
-typedef struct{
-    SDL_Rect rect;
-    bool defeated;
-    char hexText[3];
-
-    SDL_Surface* text_surface;
-    SDL_Texture* text_texture;
-    SDL_Rect dest;
-}enemy;
-
+#include "game.h"
 
 //Function decleration
 bool init();
 void Vkill();
 bool loop();
-void changeState(int padNumber);
-char assignHexText();
-void createEnemy(enemy *enemyBuffer);
-bool checkInput();
-void removeEnemy();
-void randomizeEnemy(enemy *enemyBuffer);
 
 //Constants
 SDL_Color BLACK = {0,0,0};
-
 
 //Variables
 int DEADLINE = 0.8*HEIGHT;
 int missileDefaultPos = 0xffff;
 size_t ptrToFirstEnemy = 0;
 size_t ptrToLastEnemy = MAX_ENEMIES - 1;
-
+size_t countedFrames = 0;
+Uint32 lastUpdate;
 
 int binaryNumber[8][2] = {
 	{128,0},{64,0},{32,0},{16,0},
@@ -60,10 +32,6 @@ int binaryNumber[8][2] = {
 SDL_Rect missile;
 struct binaryPad binaryPadArray[8];
 enemy enemyArray[MAX_ENEMIES];
-
-
-
-
 
 // Pointers to our window and renderer
 SDL_Window* window;
@@ -114,14 +82,16 @@ bool loop() {
             }
 	}
 
+
+
 	if (enemyArray[ptrToFirstEnemy].rect.y + enemyArray[ptrToFirstEnemy].rect.h > DEADLINE){
 		return false;
 	}
 
 	if (missile.y < enemyArray[ptrToFirstEnemy].rect.y+enemyArray[ptrToFirstEnemy].rect.h){
 		missile.y = missileDefaultPos;
+		createEnemy(&enemyArray[ptrToFirstEnemy]);
 		enemyArray[ptrToFirstEnemy].rect.y = enemyArray[ptrToLastEnemy].rect.y - 100;
-		randomizeEnemy(&enemyArray[ptrToFirstEnemy]);
 		enemyArray[ptrToFirstEnemy].defeated = false;
 
 		(ptrToFirstEnemy == MAX_ENEMIES - 1) ? ptrToFirstEnemy = 0 : ptrToFirstEnemy++;
@@ -144,18 +114,22 @@ bool loop() {
 
 
 	for (int i = 0;i < MAX_ENEMIES; i++){
-		SDL_SetRenderDrawColor( renderer, 0, 255, 0, 255 );
 
-		enemyArray[i].rect.y++;
-		SDL_RenderFillRect( renderer, &enemyArray[i].rect );
+        if( countedFrames % 2 == 0) enemyArray[i].rect.y++;
+
 		enemyArray[i].dest.y = enemyArray[i].rect.y;
 		enemyArray[i].dest.x = enemyArray[i].rect.x;
+
+		SDL_SetRenderDrawColor( renderer, 0, 255, 0, 255 );
+		SDL_RenderFillRect( renderer, &enemyArray[i].rect );
 		SDL_RenderCopy(renderer,enemyArray[i].text_texture,NULL,&enemyArray[i].dest);
 	}
 
-    SDL_SetRenderDrawColor( renderer, 255, 255, 0, 255 );
+
     missile.y-= MISSILE_SPEED;
 
+
+    SDL_SetRenderDrawColor( renderer, 255, 255, 0, 255 );
     SDL_RenderFillRect( renderer, &missile );
 
     SDL_SetRenderDrawColor( renderer, 0, 0, 0, 255 );
@@ -168,23 +142,20 @@ bool loop() {
 	SDL_RenderPresent( renderer );
 
 
-
-
-
-
-
-
 	Uint64 end = SDL_GetPerformanceCounter();
 
 	float elapsedMS = (end - start) / (float)SDL_GetPerformanceFrequency() * 1000.0f;
 
 	// Cap to 60 FPS
-	if (16.666*2 > elapsedMS) SDL_Delay(floor(16.666*2 - elapsedMS));
+	if (16.666 > elapsedMS) SDL_Delay(floor(16.666 - elapsedMS));
+
+	countedFrames++;
 
 	return true;
 }
 
 bool init() {
+    lastUpdate = SDL_GetTicks();
 
     missile.x = 0;
     missile.y = missileDefaultPos;
@@ -261,122 +232,3 @@ void Vkill() {
     TTF_Quit();
 	SDL_Quit();
 }
-
-
-
-
-
-
-
-
-void changeState(int padNumber){
-    for (int i =0; i < 8; i++){
-        if(padNumber == binaryPadArray[i].padNumber){
-            binaryPadArray[i].state = !binaryPadArray[i].state;
-            if(binaryNumber[i][1] == 0) binaryNumber[i][1] = 1;
-            else binaryNumber[i][1] = 0;
-        }
-    }
-}
-
-char assignHexText(){
-    int num = rand() % 15;
-
-    if(num < 10)
-        return num + '0';
-    else
-        return num + 55;
-
-    return '0';
-}
-
-void createEnemy(enemy *enemyBuffer){
-
-	enemyBuffer->rect.w = 50;
-    enemyBuffer->rect.h = 50;
-
-    int randXPos = (rand() % WIDTH) - enemyBuffer->rect.w;
-    if(randXPos < 0) randXPos = 0;
-    enemyBuffer->rect.x = randXPos;
-    enemyBuffer->rect.y = -100;
-
-	enemyBuffer->defeated = false;
-	enemyBuffer->hexText[0]= assignHexText();
-	enemyBuffer->hexText[1]= assignHexText();
-	enemyBuffer->hexText[2]= '\0';
-
-	SDL_Surface* textSurface;
-
-    textSurface = TTF_RenderText_Solid( font,enemyBuffer->hexText , BLACK );
-
-    if ( !textSurface ) {
-        printf("Failed to render text: %s\n",TTF_GetError());
-    }
-
-    enemyBuffer->text_texture = SDL_CreateTextureFromSurface( renderer,textSurface );
-
-    enemyBuffer->dest.w = textSurface->w;
-    enemyBuffer->dest.h = textSurface->h;
-
-	SDL_FreeSurface(textSurface);
-    printf("%s\n",enemyBuffer->hexText);
-}
-
-
-
-
-
-void randomizeEnemy(enemy *enemyBuffer){
-    int randXPos = (rand() % WIDTH) - enemyBuffer->rect.w;
-    if(randXPos < 0) randXPos = 0;
-    enemyBuffer->rect.x = randXPos;
-
-    enemyBuffer->hexText[0]= assignHexText();
-	enemyBuffer->hexText[1]= assignHexText();
-
-	SDL_Surface* textSurface;
-
-    textSurface = TTF_RenderText_Solid( font,enemyBuffer->hexText , BLACK );
-
-    if ( !textSurface ) {
-        printf("Failed to render text: %s\n",TTF_GetError());
-    }
-
-    enemyBuffer->text_texture = SDL_CreateTextureFromSurface( renderer,textSurface );
-
-    enemyBuffer->dest.w = textSurface->w;
-    enemyBuffer->dest.h = textSurface->h;
-
-	SDL_FreeSurface(textSurface);
-
-}
-
-
-
-bool checkInput(){
-
-	int currentNum = 0;
-
-	int realHex;
-
-    for (int i =0; i < 8;i++){
-    	if(binaryNumber[i][1]==1) currentNum += binaryNumber[i][0];
-    }
-
-    sscanf(enemyArray[ptrToFirstEnemy].hexText,"%x",&realHex);
-
-    if(currentNum == realHex && enemyArray[ptrToFirstEnemy].defeated == false){
-    	missile.y = HEIGHT - 100;
-		missile.x = enemyArray[ptrToFirstEnemy].rect.x;
-		enemyArray[ptrToFirstEnemy].defeated = true;
-    	printf("Pointer to first enemy is %d\n",ptrToFirstEnemy);
-        return true;
-    }else{
-        return false;
-    }
-
-    return false;
-}
-
-
-
